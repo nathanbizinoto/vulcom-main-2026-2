@@ -7,31 +7,12 @@ import logger from 'morgan'
 
 const app = express()
 
-// Permite o consumo da API pelo Vite durante o desenvolvimento.
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ?.split(',')
-  .map(origin => origin.trim())
-  .filter(Boolean) ?? []
-
 import cors from 'cors'
 
 app.use(cors({
   origin: process.env.ALLOWED_ORIGINS.split(','),
   // credentials: true
 }))
-
-app.use((req, res, next) => {
-  const origin = req.headers.origin
-  if(origin && allowedOrigins.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin)
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
-  }
-  if(req.method === 'OPTIONS') return res.status(204).end()
-  next()
-})
-
-// (...código existente...)
 
 // OWASP Top 10:2025 A09 - Falhas nos Logs de Segurança e no Sistema de Alertas:
 // o log HTTP não registra autor e mudanças de privilégios nem gera alertas de abuso.
