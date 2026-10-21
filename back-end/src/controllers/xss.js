@@ -1,6 +1,11 @@
 import prisma from '../database/client.js'
+import createDOMPurify from 'dompurify'
+import { JSDOM } from 'jsdom'
 
 const controller = {}
+
+// DOMPurify precisa de um DOM; no Node usamos o JSDOM.
+const DOMPurify = createDOMPurify(new JSDOM('').window)
 
 controller.retrieveComments = async function(req, res) {
   try {
@@ -18,10 +23,12 @@ controller.retrieveComments = async function(req, res) {
 
 controller.createComment = async function(req, res) {
   try {
-    // OWASP Top 10:2025 A05 - Injeção (XSS armazenado):
-    // o conteúdo é persistido sem sanitização e depois interpretado como HTML em XssChallenge.jsx.
+    // Sanitização: remove scripts e atributos de evento (onerror, onclick...)
+    // antes de persistir o comentário.
+    const content = DOMPurify.sanitize(String(req.body?.content ?? ''))
+
     await prisma.xssComment.create({
-      data: { content: req.body?.content ?? '' }
+      data: { content }
     })
 
     res.status(201).end()
