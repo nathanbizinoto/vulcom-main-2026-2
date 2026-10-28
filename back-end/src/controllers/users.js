@@ -1,5 +1,15 @@
 import prisma from '../database/client.js'
 import jwt from 'jsonwebtoken'
+import argon2 from 'argon2'
+
+// Parâmetros do Argon2id (recomendação da OWASP): 64 MiB de memória,
+// 3 iterações e paralelismo 4.
+const ARGON2_OPTIONS = {
+  type: argon2.argon2id,
+  memoryCost: 65536,
+  timeCost: 3,
+  parallelism: 4
+}
 
 const controller = {}     // Objeto vazio
 
@@ -8,7 +18,12 @@ controller.create = async function(req, res) {
 
     // OWASP Top 10:2025 A01 - Falha no Controle de Acesso:
     // atribuição em massa permite ao cliente definir campos sensíveis, como is_admin.
-    // OWASP Top 10:2025 A04 - Falhas de Criptografia: password é persistido sem hash.
+    // Gera o hash Argon2id da senha antes de salvar (o sal é gerado
+    // automaticamente e fica embutido no hash).
+    if(req.body?.password) {
+      req.body.password = await argon2.hash(req.body.password, ARGON2_OPTIONS)
+    }
+
     await prisma.user.create({ data: req.body })
 
     // HTTP 201: Created
@@ -65,7 +80,11 @@ controller.update = async function(req, res) {
 
     // OWASP Top 10:2025 A01 - Falha no Controle de Acesso:
     // o cliente pode alterar is_admin e password de qualquer usuário por atribuição em massa.
-    // OWASP Top 10:2025 A04 - Falhas de Criptografia: a nova senha também é gravada sem hash.
+    // Se houve mudança de senha, gera o novo hash antes de salvar
+    if(req.body?.password) {
+      req.body.password = await argon2.hash(req.body.password, ARGON2_OPTIONS)
+    }
+
     const result = await prisma.user.update({
       where: { id: Number(req.params.id) },
       data: req.body
@@ -126,14 +145,9 @@ controller.login = async function(req, res) {
       // HTTP 401: Unauthorized
       if(! user) return res.status(401).end()
 
-      // Usuário encontrado, vamos conferir a senha
-      // OWASP Top 10:2025 A07 - Falhas de Autenticação:
-      // a credencial fixa admin/admin123 ignora a senha cadastrada para esse usuário.
-      // OWASP Top 10:2025 A04 - Falhas de Criptografia:
-      // a comparação direta usa a senha armazenada em texto puro, sem hash adaptativo.
-      let passwordIsValid
-      if(req.body?.username === 'admin' && req.body?.password === 'admin123') passwordIsValid = true
-      else passwordIsValid = user.password === req.body?.password
+      // Usuário encontrado, vamos conferir a senha: o Argon2 compara o hash
+      // armazenado com a senha recebida (o sal está embutido no hash).
+      const passwordIsValid = await argon2.verify(user.password, String(req.body?.password ?? ''))
 
       // Se a senha estiver errada, retorna
       // HTTP 401: Unauthorized

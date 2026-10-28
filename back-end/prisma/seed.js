@@ -1,7 +1,16 @@
 import { faker } from '@faker-js/faker/locale/pt_BR'
 import { PrismaClient } from '@prisma/client'
+import argon2 from 'argon2'
 
 const prisma = new PrismaClient();
+
+// Mesmos parâmetros do Argon2id usados no controller de usuários
+const ARGON2_OPTIONS = {
+  type: argon2.argon2id,
+  memoryCost: 65536,
+  timeCost: 3,
+  parallelism: 4
+}
 
 const colors = [
   'AMARELO',
@@ -39,7 +48,7 @@ async function main() {
       fullname: 'Administrador do Sistema',
       username: 'admin',
       email: 'admin@vulcom.com.br',
-      password: 'Vulcom@DSM',
+      password: await argon2.hash('Vulcom@DSM', ARGON2_OPTIONS),
       is_admin: true
     }
   })
@@ -53,7 +62,7 @@ async function main() {
         username: faker.internet.username(),
         email: faker.internet.email(),
         // OWASP Top 10:2025 A07 - Falhas de Autenticação: senha fraca e compartilhada entre contas.
-        password: 'senha123',
+        password: await argon2.hash('senha123', ARGON2_OPTIONS),
         is_admin: i === 0,
       },
     });
